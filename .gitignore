@@ -421,6 +421,15 @@ FodyWeavers.xsd
 # --- Project Data ---
 # Ignore the data folder (raw, processed, etc.)
 data/
+!data/
+!data/raw/
+data/raw/*
+!data/raw/daily_dataset.csv
+!data/raw/london_weather.csv
+!data/raw/
+data/raw/*
+!data/raw/daily_dataset.csv
+!data/raw/london_weather.csv
 
 # --- Python ---
 __pycache__/
