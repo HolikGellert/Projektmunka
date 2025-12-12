@@ -10,6 +10,7 @@
 *.userosscache
 *.sln.docstates
 *.env
+*.venv
 
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
@@ -437,3 +438,12 @@ env/
 
 # --- VS Code Settings (Optional) ---
 .vscode/
+
+# --- Prediction Artifacts ---
+prediction/data/
+prediction/**/*.csv
+prediction/models/*.pt
+prediction/models/*.pth
+prediction/models/*.onnx
+prediction/models/*.pkl
+prediction/models/*.npz
