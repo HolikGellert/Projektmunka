@@ -13,7 +13,7 @@ def _activation_block(hidden_size: int) -> nn.Sequential:
 class LSTMRegressor(nn.Module):
     """Sequence-to-one LSTM regressor."""
 
-    def __init__(self, input_size: int, hidden_size: int = 96, num_layers: int = 2, dropout: float = 0.25):
+    def __init__(self, input_size: int, hidden_size: int = 128, num_layers: int = 3, dropout: float = 0.3):
         super().__init__()
         self.lstm = nn.LSTM(
             input_size=input_size,
@@ -37,7 +37,7 @@ class LSTMRegressor(nn.Module):
 class GRURegressor(nn.Module):
     """GRU alternative for comparison."""
 
-    def __init__(self, input_size: int, hidden_size: int = 96, num_layers: int = 2, dropout: float = 0.25):
+    def __init__(self, input_size: int, hidden_size: int = 128, num_layers: int = 3, dropout: float = 0.3):
         super().__init__()
         self.gru = nn.GRU(
             input_size=input_size,
@@ -60,9 +60,9 @@ class GRURegressor(nn.Module):
 class TemporalCNNRegressor(nn.Module):
     """Dilated 1D CNN for temporal patterns."""
 
-    def __init__(self, input_size: int, channels: list[int] | None = None, kernel_size: int = 3, dropout: float = 0.25):
+    def __init__(self, input_size: int, channels: list[int] | None = None, kernel_size: int = 3, dropout: float = 0.3):
         super().__init__()
-        channels = channels or [64, 128]
+        channels = channels or [64, 128, 256]
 
         layers = []
         in_channels = input_size

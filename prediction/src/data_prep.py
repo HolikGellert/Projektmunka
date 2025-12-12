@@ -89,8 +89,8 @@ class PredictionDataPrep:
         X_np = np.stack(X_windows)
         y_np = np.array(y_targets).reshape(-1, 1)
 
-        # Down-sample to cap training volume
-        if len(X_np) > Config.MAX_SEQUENCES:
+        # Down-sample to cap training volume (skip if MAX_SEQUENCES is None)
+        if Config.MAX_SEQUENCES and len(X_np) > Config.MAX_SEQUENCES:
             rng = np.random.default_rng(seed=Config.RANDOM_STATE)
             idx = rng.choice(len(X_np), size=Config.MAX_SEQUENCES, replace=False)
             X_np = X_np[idx]

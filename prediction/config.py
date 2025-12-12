@@ -18,7 +18,7 @@ class PredictionConfig:
     # Sequence settings
     LOOKBACK = 21  # days
     SEQUENCE_STRIDE = 1  # finer stride for richer sequences
-    MAX_SEQUENCES = 120000  # sample cap to keep epochs manageable
+    MAX_SEQUENCES = None  # use full dataset when GPU is available
     TARGET_COL = "energy_sum"
     VAL_RATIO = 0.1
     TEST_RATIO = 0.1
@@ -44,13 +44,13 @@ class PredictionConfig:
     ]
 
     # Training defaults
-    BATCH_SIZE = 128
-    EPOCHS = 120
+    BATCH_SIZE = 256
+    EPOCHS = 150
     LEARNING_RATE = 5e-4
     WEIGHT_DECAY = 1e-4
     MAX_TRAIN_BATCHES = None  # set to None to use full dataset
     MAX_EVAL_BATCHES = None   # set to None to use full eval
-    EARLY_STOP_PATIENCE = 5   # stop if val loss does not improve
+    EARLY_STOP_PATIENCE = 10  # stop if val loss does not improve
     GRAD_CLIP = 1.0
 
     # Artifact locations
