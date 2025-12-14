@@ -45,7 +45,7 @@ class PredictionConfig:
 
     # Training defaults
     BATCH_SIZE = 256
-    EPOCHS = 1
+    EPOCHS = 150
     LEARNING_RATE = 5e-4
     WEIGHT_DECAY = 1e-4
     MAX_TRAIN_BATCHES = None  # set to None to use full dataset
