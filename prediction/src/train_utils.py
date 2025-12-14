@@ -157,8 +157,15 @@ def evaluate_mae(
 
 def save_model(model: torch.nn.Module, path: Path):
     path.parent.mkdir(parents=True, exist_ok=True)
-    torch.save(model.state_dict(), path)
-    logger.info("Saved model to %s", path)
+    try:
+        # Ensure tensors are on CPU to avoid device-specific issues during load/save
+        state = {k: v.cpu() if isinstance(v, torch.Tensor) else v for k, v in model.state_dict().items()}
+        torch.save(state, path)
+        logger.info("Saved model to %s", path)
+        return path
+    except Exception:
+        logger.exception("Failed to save model to %s", path)
+        raise
 
 
 def save_metadata(metadata: Dict, path: Path = Config.METADATA_PATH):
