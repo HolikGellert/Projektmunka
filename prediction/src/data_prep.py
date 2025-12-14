@@ -18,7 +18,7 @@ class SequenceData:
     y: np.ndarray
     feature_cols: List[str]
     lookback: int
-    scaler: StandardScaler
+    scaler: StandardScaler | None
 
 
 class PredictionDataPrep:
@@ -32,6 +32,11 @@ class PredictionDataPrep:
         logger.info("Loading energy data with compression=zip")
         energy = pd.read_csv(Config.RAW_ENERGY_FILE, compression="zip")
         energy["day"] = pd.to_datetime(energy["day"])
+        # Keep only days with a full set of half-hourly measurements
+        if "energy_count" in energy.columns:
+            before = len(energy)
+            energy = energy[energy["energy_count"] >= 48].copy()
+            logger.info("Filtered incomplete days: %d -> %d", before, len(energy))
 
         logger.info("Loading weather data")
         weather = pd.read_csv(Config.RAW_WEATHER_FILE)
@@ -54,10 +59,18 @@ class PredictionDataPrep:
         enriched = fe.add_features(df)
         return enriched
 
-    def _fit_scaler(self, df: pd.DataFrame, feature_cols: List[str]) -> StandardScaler:
-        self.scaler = StandardScaler()
-        self.scaler.fit(df[feature_cols])
-        return self.scaler
+    def _fit_scaler_from_sequences(self, X: np.ndarray) -> StandardScaler:
+        """Fits scaler on the flattened train sequences only to avoid leakage."""
+        scaler = StandardScaler()
+        scaler.fit(X.reshape(-1, X.shape[-1]))
+        self.scaler = scaler
+        return scaler
+
+    @staticmethod
+    def _transform_sequences(scaler: StandardScaler, X: np.ndarray) -> np.ndarray:
+        """Applies a fitted scaler to 3D sequence arrays."""
+        shape = X.shape
+        return scaler.transform(X.reshape(-1, shape[-1])).reshape(shape)
 
     def build_sequences(
         self,
@@ -72,14 +85,13 @@ class PredictionDataPrep:
         stride = stride or Config.SEQUENCE_STRIDE
 
         df = df.sort_values(["LCLid", "day"]).reset_index(drop=True)
-        self._fit_scaler(df, feature_cols)
 
         X_windows, y_targets = [], []
         groups = df.groupby("LCLid")
 
         for _, group in groups:
             group = group.reset_index(drop=True)
-            features = self.scaler.transform(group[feature_cols])
+            features = group[feature_cols].to_numpy()
             targets = group[Config.TARGET_COL].values
 
             for idx in range(lookback, len(group), stride):
@@ -101,7 +113,7 @@ class PredictionDataPrep:
             y=y_np,
             feature_cols=feature_cols,
             lookback=lookback,
-            scaler=self.scaler,
+            scaler=None,
         )
 
     def train_test_split(
@@ -109,8 +121,13 @@ class PredictionDataPrep:
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """Simple chronological split for sequences."""
         cutoff = int(len(seq_data.X) * (1 - test_ratio))
-        X_train, X_test = seq_data.X[:cutoff], seq_data.X[cutoff:]
+        X_train_raw, X_test_raw = seq_data.X[:cutoff], seq_data.X[cutoff:]
         y_train, y_test = seq_data.y[:cutoff], seq_data.y[cutoff:]
+
+        scaler = self._fit_scaler_from_sequences(X_train_raw)
+        X_train = self._transform_sequences(scaler, X_train_raw)
+        X_test = self._transform_sequences(scaler, X_test_raw)
+        seq_data.scaler = scaler
         return X_train, X_test, y_train, y_test
 
     def train_val_test_split(
@@ -128,9 +145,15 @@ class PredictionDataPrep:
         train_end = max(n - test_size - val_size, 0)
         val_end = max(n - test_size, train_end)
 
-        X_train, y_train = seq_data.X[:train_end], seq_data.y[:train_end]
-        X_val, y_val = seq_data.X[train_end:val_end], seq_data.y[train_end:val_end]
-        X_test, y_test = seq_data.X[val_end:], seq_data.y[val_end:]
+        X_train_raw, y_train = seq_data.X[:train_end], seq_data.y[:train_end]
+        X_val_raw, y_val = seq_data.X[train_end:val_end], seq_data.y[train_end:val_end]
+        X_test_raw, y_test = seq_data.X[val_end:], seq_data.y[val_end:]
+
+        scaler = self._fit_scaler_from_sequences(X_train_raw)
+        X_train = self._transform_sequences(scaler, X_train_raw)
+        X_val = self._transform_sequences(scaler, X_val_raw)
+        X_test = self._transform_sequences(scaler, X_test_raw)
+        seq_data.scaler = scaler
 
         return X_train, X_val, X_test, y_train, y_val, y_test
 

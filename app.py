@@ -25,7 +25,8 @@ st.set_page_config(page_title="Energy Consumption Predictor")
 
 st.title("Energy Consumption Prediction")
 st.markdown("""
-This application uses Deep Learning models (LSTM, GRU, TCN) to forecast energy consumption based on weather parameters.
+This application uses Deep Learning models (LSTM, GRU, TCN) to forecast daily energy consumption. 
+Please provide the latest day's energy + weather features; the app will build a lookback window from these values.
 """)
 
 # --- SIDEBAR: SETTINGS ---
@@ -83,18 +84,29 @@ def load_model_and_scaler(model_name):
     return model, scaler
 
 # --- MAIN: INPUT FORM ---
-st.subheader("Weather Parameters")
+st.subheader("Latest Day Features (match training schema)")
+
+weekday_names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 
 col1, col2 = st.columns(2)
 
 with col1:
-    mean_temp = st.slider("Mean Temperature (°C)", -10.0, 40.0, 15.0)
-    humidity = st.slider("Humidity (%)", 0, 100, 60)
-    cloud_cover = st.slider("Cloud Cover (0-1)", 0.0, 1.0, 0.5)
+    energy_sum = st.number_input("Daily energy_sum (kWh)", min_value=0.0, value=12.0, step=0.1)
+    energy_mean = st.number_input("Daily energy_mean (kWh)", min_value=0.0, value=0.5, step=0.01)
+    energy_max = st.number_input("Daily energy_max (kWh)", min_value=0.0, value=1.5, step=0.05)
+    energy_std = st.number_input("Daily energy_std (kWh)", min_value=0.0, value=0.2, step=0.01)
+    mean_temp = st.slider("Mean Temperature (°C)", -15.0, 40.0, 12.0)
+    max_temp = st.slider("Max Temperature (°C)", -15.0, 45.0, 18.0)
+    min_temp = st.slider("Min Temperature (°C)", -25.0, 35.0, 8.0)
 
 with col2:
-    precipitation = st.number_input("Precipitation (mm)", 0.0, 100.0, 0.0)
-    sunshine = st.number_input("Sunshine (hours)", 0.0, 16.0, 5.0)
+    global_radiation = st.number_input("Global radiation (kJ/m²)", min_value=0.0, max_value=5000.0, value=1000.0, step=50.0)
+    sunshine = st.number_input("Sunshine (hours)", min_value=0.0, max_value=16.0, value=5.0, step=0.5)
+    cloud_cover = st.slider("Cloud cover (oktas, 0-8)", 0.0, 8.0, 4.0)
+    precipitation = st.number_input("Precipitation (mm)", min_value=0.0, max_value=80.0, value=0.0, step=0.5)
+    pressure = st.number_input("Pressure (Pa)", min_value=90000.0, max_value=110000.0, value=101300.0, step=100.0)
+    day_of_week = st.selectbox("Day of week (0=Mon)", list(range(7)), format_func=lambda i: f"{i} ({weekday_names[i]})")
+    season = st.selectbox("Season code", options=[1, 2, 3, 4], format_func=lambda i: {1: "Winter", 2: "Spring", 3: "Summer", 4: "Fall"}[i])
     is_holiday = st.checkbox("Is Holiday?", value=False)
 
 # --- PREDICTION LOGIC ---
@@ -102,33 +114,32 @@ if st.button("Run Prediction"):
     model, scaler = load_model_and_scaler(model_type)
     
     if model is not None:
-        # Construct input data dictionary
-        # NOTE: Ensure these keys match your Config.FEATURE_COLS exactly
+        # Construct input data dictionary aligned with Config.FEATURE_COLS
         input_data = {
-            'temperature': mean_temp,
-            'humidity': humidity, 
-            'precipitation': precipitation,
-            'cloud_cover': cloud_cover,
-            'sunshine': sunshine,
-            'global_radiation': sunshine * 10, # Estimated derivation
-            'mean_pressure': 1013.0, # Default average
-            'snow_depth': 0.0,
-            # Temporal features (dummy values for demo)
-            'month_sin': 0.5, 'month_cos': 0.5,
-            'day_sin': 0.5, 'day_cos': 0.5,
-            'weekday_sin': 0.5, 'weekday_cos': 0.5,
-            'is_holiday': 1.0 if is_holiday else 0.0,
-            'is_weekend': 0.0
+            "energy_sum": energy_sum,
+            "energy_mean": energy_mean,
+            "energy_max": energy_max,
+            "energy_std": energy_std,
+            "mean_temp": mean_temp,
+            "max_temp": max_temp,
+            "min_temp": min_temp,
+            "global_radiation": global_radiation,
+            "sunshine": sunshine,
+            "cloud_cover": cloud_cover,
+            "precipitation": precipitation,
+            "pressure": pressure,
+            "is_weekend": 1.0 if day_of_week >= 5 else 0.0,
+            "is_holiday": 1.0 if is_holiday else 0.0,
+            "day_of_week": float(day_of_week),
+            "season": float(season),
         }
         
         # Build feature vector based on Config order
-        feature_vector = []
-        for col in Config.FEATURE_COLS:
-            feature_vector.append(input_data.get(col, 0.0))
+        feature_vector = [input_data[col] for col in Config.FEATURE_COLS]
             
         # Create Sequence:
-        # The model expects a sequence (e.g., past 24h). 
-        # For this demo, we repeat the user input to fill the lookback window.
+        # The model expects a sequence window. For demo purposes,
+        # we tile the provided latest-day features across the lookback.
         lookback = getattr(Config, 'LOOKBACK', 24)
         seq_array = np.tile(feature_vector, (lookback, 1))
         
