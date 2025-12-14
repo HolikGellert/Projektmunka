@@ -25,8 +25,8 @@ st.set_page_config(page_title="Energy Consumption Predictor")
 
 st.title("Energy Consumption Prediction")
 st.markdown("""
-This application uses Deep Learning models (LSTM, GRU, TCN) to forecast daily energy consumption. 
-Please provide the latest day's energy + weather features; the app will build a lookback window from these values.
+This application uses Deep Learning models (LSTM, GRU, TCN) to forecast daily energy consumption.
+Provide the latest day's features below, or upload the last N days to build a realistic lookback window.
 """)
 
 # --- SIDEBAR: SETTINGS ---
@@ -109,6 +109,11 @@ with col2:
     season = st.selectbox("Season code", options=[1, 2, 3, 4], format_func=lambda i: {1: "Winter", 2: "Spring", 3: "Summer", 4: "Fall"}[i])
     is_holiday = st.checkbox("Is Holiday?", value=False)
 
+# --- OPTIONAL HISTORY UPLOAD ---
+st.subheader("Optional: Upload recent days (CSV) for lookback")
+st.caption(f"Expected columns: {', '.join(Config.FEATURE_COLS)}. At least {Config.LOOKBACK} rows recommended.")
+uploaded_history = st.file_uploader("CSV with recent days (will use the last rows as lookback)", type=["csv"])
+
 # --- PREDICTION LOGIC ---
 if st.button("Run Prediction"):
     model, scaler = load_model_and_scaler(model_type)
@@ -134,23 +139,36 @@ if st.button("Run Prediction"):
             "season": float(season),
         }
         
-        # Build feature vector based on Config order
         feature_vector = [input_data[col] for col in Config.FEATURE_COLS]
-            
-        # Create Sequence:
-        # The model expects a sequence window. For demo purposes,
-        # we tile the provided latest-day features across the lookback.
         lookback = getattr(Config, 'LOOKBACK', 24)
-        seq_array = np.tile(feature_vector, (lookback, 1))
+
+        # Try to build sequence from uploaded history (preferred)
+        seq_array = None
+        if uploaded_history is not None:
+            try:
+                history_df = pd.read_csv(uploaded_history)
+                missing = [c for c in Config.FEATURE_COLS if c not in history_df.columns]
+                if missing:
+                    st.warning(f"Uploaded file missing columns: {missing}. Falling back to repeated latest-day features.")
+                else:
+                    history_slice = history_df.tail(lookback)
+                    if len(history_slice) < lookback:
+                        st.warning(f"Need at least {lookback} rows for lookback. Found {len(history_slice)}. Falling back to repeated latest-day features.")
+                    else:
+                        seq_array = history_slice[Config.FEATURE_COLS].to_numpy()
+            except Exception as e:
+                st.warning(f"Could not parse uploaded CSV: {e}. Falling back to repeated latest-day features.")
+
+        # Fallback: repeat the latest-day vector across the lookback
+        if seq_array is None:
+            seq_array = np.tile(feature_vector, (lookback, 1))
         
         # Scale Data
         if scaler:
             try:
-                # Assuming scaler was fitted on a DataFrame
                 df_seq = pd.DataFrame(seq_array, columns=Config.FEATURE_COLS)
                 seq_array_scaled = scaler.transform(df_seq)
             except Exception:
-                # Fallback if scaler expects different input shape
                 seq_array_scaled = seq_array
         else:
             seq_array_scaled = seq_array
