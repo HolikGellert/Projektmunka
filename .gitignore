@@ -453,8 +453,3 @@ env/
 # --- Prediction Artifacts ---
 prediction/data/
 prediction/**/*.csv
-prediction/models/*.pt
-prediction/models/*.pth
-prediction/models/*.onnx
-prediction/models/*.pkl
-prediction/models/*.npz
