@@ -133,7 +133,11 @@ def train_model(
 
         if checkpoint_fn:
             try:
-                checkpoint_fn(display_epoch, model, history, best_val)
+                try:
+                    checkpoint_fn(display_epoch, model=model, history=history, best_val=best_val)
+                except TypeError:
+                    # Fallback for simpler callbacks that only accept epoch
+                    checkpoint_fn(display_epoch)
             except Exception:
                 logger.exception("Checkpoint callback failed at epoch %d", display_epoch)
 
