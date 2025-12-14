@@ -59,6 +59,8 @@ def train_model(
     max_batches: int | None = None,
     early_stop_patience: int | None = Config.EARLY_STOP_PATIENCE,
     device: torch.device | str | None = None,
+    start_epoch: int = 0,
+    checkpoint_fn=None,
 ) -> Dict[str, List[float]]:
     device = torch.device(device or ("cuda" if torch.cuda.is_available() else "cpu"))
     model.to(device)
@@ -73,6 +75,7 @@ def train_model(
     patience_ctr = 0
 
     for epoch in range(1, epochs + 1):
+        display_epoch = start_epoch + epoch
         model.train()
         train_loss = 0.0
         train_seen = 0
@@ -113,8 +116,8 @@ def train_model(
 
         history["train_loss"].append(train_loss)
         history["val_loss"].append(val_loss)
-        logger.info("Epoch %d/%d - train_loss=%.4f val_loss=%.4f", epoch, epochs, train_loss, val_loss)
-        print(f"Epoch {epoch}/{epochs} - train_loss={train_loss:.4f} val_loss={val_loss:.4f}")
+        logger.info("Epoch %d - train_loss=%.4f val_loss=%.4f", display_epoch, train_loss, val_loss)
+        print(f"Epoch {display_epoch} - train_loss={train_loss:.4f} val_loss={val_loss:.4f}")
         scheduler.step(val_loss)
 
         # Track best model for early stopping
@@ -125,8 +128,14 @@ def train_model(
         else:
             patience_ctr += 1
             if early_stop_patience and patience_ctr >= early_stop_patience:
-                print(f"Early stopping at epoch {epoch} (best val_loss={best_val:.4f})")
+                print(f"Early stopping at epoch {display_epoch} (best val_loss={best_val:.4f})")
                 break
+
+        if checkpoint_fn:
+            try:
+                checkpoint_fn(display_epoch, model, history, best_val)
+            except Exception:
+                logger.exception("Checkpoint callback failed at epoch %d", display_epoch)
 
     # Restore best weights if captured
     if best_state is not None:
