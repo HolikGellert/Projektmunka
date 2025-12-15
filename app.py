@@ -14,7 +14,7 @@ if str(REPO_ROOT) not in sys.path:
 
 # --- IMPORTS FROM YOUR REPO ---
 try:
-    from prediction.src.models import LSTMRegressor, GRURegressor, TemporalCNNRegressor
+    from prediction.src.models import LSTMRegressor, GRURegressor
     from prediction.config import PredictionConfig as Config
 except ImportError:
     st.error("Error: Could not find 'prediction' module. Make sure the 'prediction/' folder is in the same directory as app.py.")
@@ -25,7 +25,7 @@ st.set_page_config(page_title="Energy Consumption Predictor")
 
 st.title("Energy Consumption Prediction")
 st.markdown("""
-This application uses Deep Learning models (LSTM, GRU, TCN) to forecast daily energy consumption.
+This application uses Deep Learning models (LSTM, GRU) to forecast daily energy consumption.
 Provide the latest day's features below, or upload the last N days to build a realistic lookback window.
 """)
 
@@ -34,7 +34,7 @@ st.sidebar.header("Model Settings")
 
 model_type = st.sidebar.selectbox(
     "Select Model Architecture",
-    ("LSTM", "GRU", "TCN")
+    ("LSTM", "GRU")
 )
 
 # --- HELPER FUNCTIONS ---
@@ -48,12 +48,9 @@ def load_model_and_scaler(model_name):
     if model_name == "LSTM":
         model = LSTMRegressor(input_size=input_size)
         path = Config.LSTM_MODEL_PATH
-    elif model_name == "GRU":
+    else:
         model = GRURegressor(input_size=input_size)
         path = Config.GRU_MODEL_PATH
-    else:
-        model = TemporalCNNRegressor(input_size=input_size)
-        path = Config.CNN_MODEL_PATH
     
     # 2. Load Weights (Map to CPU for Streamlit Cloud)
     try:
